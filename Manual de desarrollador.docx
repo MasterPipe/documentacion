@@ -1,0 +1,167 @@
+﻿
+
+MANUAL DEL DESARROLLADOR DE ALMOTOS
+
+
+Metadatos de este documento
+Fecha
+20 – 04 -2013 
+Autor
+Pablo Andrés Vélez Vidal
+Revisión
+Pablo Andrés Vélez Vidal
+Versión
+01/01/00
+
+
+
+Objetivo: Este documento es redactado con el objetivo de servir como guia de desarrollo para los programadores del software ALMOTOS, o cualquier producto software utilizando FOM framework, o en su defecto folcs framework.
+
+Folcs framework: framework de desarrollo web desarrollado por Francisco Lozano de felinux ltada. <fjlozano@felinux.com>.
+
+FOM (framework opensource multiplatform): Framework desarrollado por Pablo Andrés Vélez Vidal basado en folcs.
+
+
+Alcance de este documento: en este documento se explicara la estructura del framework, como son tratadas las estructuras de datos en un ambiente web a través del mismo y todos y cada uno de los componentes que hacen parte de su núcleo para poder generar la base con la cual se desarrollan los módulos funcionales de una aplicación.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Aspectos básicos de funcionamiento del framework.
+
+Lenguajes y tecnológias: 
+
+-Control de lógica del negocio: folcs esta escrito enteramente en PHP. Hace uso de el paradigma orientado a objetos para almacenar todos los atributos de datos y las funciones necesarias del sistema. El modelo OO de folcs no es el mas adecuado, pues más bien genera lo que se conoce como objetos degenerados que son o repositorios de funciones, o de datos. 
+
+-vista HTML: En este modelo OO se manejan diversos modelos de abstracción, por ejemplo la clase HTML que se encuentra en el archivo /clases/HTML para la generación final del código HTML. En este framework para generar cualquier tipo de objeto del DOM, ya sea un tabla <table>, un parrafo <p> o un campo te texto <input> se hace a través de la clase HTML llamando a sus respectivos metodos, más adelante se explicará en detalle el funcionamiento de esta clase.
+
+-Modelo de datos: para el modelo de datos del funcionamiento básico del framework se utiliza el SGBDR MySql, en el cual se almacena la información tanto de los modulos de configuración, como de los de control y los de funcionamiento, estos dos últimos (control y funcionamiento) se explicarán en detalle más adelante. Por modulos de configuración nos referimos a datos almacenados en la tabla “Modulos” que serán de carácter obligatorio para la correcta configuración y despliegue de la plataforma de desarrollo.
+
+Procesamiento de peticiones: todo el procesamiento de cualquier sea la petición, ya sea a la página home, o a cualquier otra página que se lleve a cabo en una aplicación escrita con folcs (incluidas las peticiones ajax), es procesada enteramente a través del archivo index.php, en el cual a traves de ciertos archivos de configuración, llamadas a metodos de clases y con los parametros que recibe a través de la URL, genera una respuesta adecuada en formato HTML o JSON según sea requerido. Mas adelante se explica con más detalle el funcionamiento del index.
+
+
+La reescritura de URLs: Lo primero que hay que tener claro cuando se trabaja con este framework es el modelo de funcionamiento de la reescritura de URLs. Folcs trabaja solamente con URLs amigables, es decir, los nombres de las variables  que van a viajar por URL, o en otras palabras, que van a ser capturados en el arreglo global $_GET, son omitidos y reescritos por el archivo de configuración de apache .htaccess. Según lo dicho se presenta el siguiente ejemplo:
+
+URL con parametros que serán recibidos por $_GET
+
+   http://www.direccion_servidor.com/home
+
+La reescritura que lleva a cabo el .htacces sobre la URL queda de la siguiente manera:
+
+  http://www.direccion_servidor.com/index.php?modulo=home
+
+Lo siguiente significa que en el index.php tendré la oportunidad de recibir una variable a través del arreglo global GET de la siguiente manera: $_GET['modulo'] = 'home', dicha variable le dice al framework que el modulo que debe mostrar es el modulo “home”.
+
+Esta funcionalidad es llevada a cabo por la clase Clases/Modulos (será explicada más adelante en detalle), la cual es invocada por el index. A continuación se mostrará de manera superficial el modelo de funcionamiento de la llamada a un modulo: 
+
+1) Se recibe la variable “modulo” por la URL, con valor por ejemplo “home” . Este valor representa la columna url de la tabla MODULOS de la base de datos.
+
+2) Se hace una consulta a la BD para obtener el nombre del modulo, pues la clase Modulos recibe como parametro  el nombre del modulo y no su campo url.
+
+3)Una vez creado el objeto Modulo, se llama a su metodo procesar(), el cual con ayuda de llamadas a otros metodos de otras clases se encarga de responder a la petición del cliente generando el archivo a ser devuelto al navegador.
+
+El archivo .htacces también se encarga de reescribir las peticiones que se realizan via ajax, así una petición via Ajax a la siguiente URL:
+
+	http://www.servidor.com/ajax/home/registrarse
+
+Será reescrita de la siguiente manera:
+
+	http://www.servidor.com/index.php?via=ajax&modulo=home&accion=registrarse
+
+Lo anterior significa que el index.php del servidor esta recibiendo tres variables a traves del arreglo global GET, así :   GET['via'] = 'ajax';  -  GET['modulo'] = 'home'; -  GET['accion'] = 'registrarse';
+Esto le dice al framework lo siguiente:
+
+“Navegador: Servidor, le estoy haciendo una petición via  ajax por favor vaya al modulo “home”(/modulos/home/ajax.php), y llameme a la función “registrarse()” . 
+
+Hay que tener en cuenta que en este framework nunca se captura una variable a traves de su arreglo global ya sea $_GET, $_POST, $_FILES, $_SESION, sino que cada una de estas variables es almacenada dentro de una variable global precedida por un prefijo dependiendo del arreglo global por el que venga. Según esto se muestran los siguientes ejemplos:
+
+-Todas las variables que vengan en el arreglo $_GET, su prefijo será “$url_”, según esto y utilizando el ejemplo anterior la variable que llega solicitando el modulo al cual dirigirse, dentro del framework seria transformada de la siguiente manera:  
+			 $_GET['modulo'] = 'home';  === $url_modulo = 'home';
+
+--Todas las variables que vengan en el arreglo $_POST, su prefijo será “$forma_”, según esto dentro del framework  cualquier variable enviada al servidor por el metodo POST dentro del index seria transformada de la siguiente manera:   
+			$_POST['apellido1'] = 'Velez';  === $forma_apellido1 = 'Velez';
+
+
+
+
+
+--Todas las variables que vengan en el arreglo $_FILES, su prefijo será “$archivo_”, según esto dentro del framework  cualquier variable enviada al servidor  a traves del arreglo FILES dentro del index seria transformada de la siguiente manera:   
+
+	$_FILES['foto_autor'] = 'mi_foto.jpg';  === $archivo_foto_autor = 'mi_foto.jpg';
+
+
+--Todas las variables que vengan en el arreglo $_SESSION, su prefijo será “$sesion_”. A diferencia de los arreglos globales anteriores estas variables no son transformadas por el metodo estatico  Servidor::exportarVariables(), sino que son transformadas por el metodo Sesion::registrar(). Según esto dentro del framework  cualquier variable de sesion existente en el arreglo $_SESSION, al registrarse es reescrita a “$sesion_”, por ejemplo:   
+
+	$_SESSION['id_perfil_usuario] = '012';  === $sesion_ id_perfil_usuario = '012;
+
+
+Como se dijo anteriormente, todas las peticiones, sean por la via que sean, van a parar al index, como se pudo ver en la reescritura de ambas URL:
+
+	http://www.servidor.com/index.php?via=ajax&modulo=home&accion=registrarse
+
+	http://www.direccion_servidor.com/index.php?modulo=home
+
+Dentro del index se hace la llamada al metodo estatico Servidor::exportarVariables(), el cual se encarga de leer estas variables globales ($_GET, $_POST, etc), recorrer cada una de sus posiciones y crear una variable global nueva con el prefijo que le corresponda ($url_, $forma_, $archivo_). En el caso de las variables globales, como estas pueden ser creadas (o destruidas), dentro de cualquier parte de la aplicación, no son tratadas por el metodo Servidor::exportarVariables() sino que son creadas,  reescritas y hechas globales en el metodo Servidor::registrar($posicion, $valor), según esto, para crear la variable $_SESSION['id_usuario'] = '12', habria que llamar al metodo Sesion::registrar('id_usuario', '12'), el cual generaría una variable global $sesion_id_usuario = '12'.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Explicación del index.php: Como se ha mencionado varias veces anteriormente, el index.php es el archivo por donde pasan y se suceden cada una de las peticiones realizadas. A continuación se explica con más detalle su funcionalidad.
+
+1)Se declara una variable con el nombre del directorio que almacena los archivos de configuración.
+
+2)Efectuar la carga de los archivos contenidos en el directorio de configuración recorriendo cada uno de los archivos, verificando que sean archivos php, y cargandolos dentro del index con la función  require_once().
+	
+3) Efectuar la carga de los archivos de definición de clases básicas, esto significa que se deben cargar en memoria todos los archivos de las clases que son basicas ( en la carpeta webroot → clases/) para el funcionamiento y despliegue del framework.
+
+4)Efectuar la carga de los archivos de definición de clases de los módulos, esto significa cargar las clases que pertenecen a todos los modulos creados en el sistema para poder ser utilizadas, ya sea creando objetos de dichas clases, o para llamar a sus metodos estaticos y con esto poder generar la respuesta adecuada según la peticion del cliente(navegador).
+
+5)Redefinir los nombres de las variables para hacerlas globales. Como se explico anteriormente, se llama a un metodo de la clase Servidor, el cual se encarga de recorrer los arreglos superglobales, recorrer sus posiciones y crear variables globales con un prefijo según sea su superglobal.
+
+6)Crear un objeto de conexión a la base de datos. Se crea un objeto de la clase SQL (clase que se explica en detalle más adelante). Resumiendo un poco su interfaz, es una clase que permite la interaccion con la base de datos MySql en este caso, permitiendonos utilizar sus metodos para llevar a cabo todas las operaciones CRUD necesarias para el desarrollo de la aplicación.
+
+7)Iniciar la gestión de la sesión. En esta parte se inicializa la aplicación para su trabajo con variables de sesion, se configura el tiempo de vida de la variables de sesion, se reescriben todas las variables existentes en el arreglo superglobal $_SESSION, ejemplo: 
+	($_SESSION['id_usuario'] = '12'    → $sesion_id_usuario = '12') 
+
+Y tambien se cargan algunas variables de sesión básicas.
+
+8)Definir y registrar el idioma a utilizar durante la sesión. Se registra una variable de sesion con el valor idioma, así $_SESSION['idioma']  sería reconocida dentro del framework como $sesion_idioma.
+El valor registrado se toma del arreglo de configuración global en la posicion $configuracion["GENERAL"]["idioma"], asi el framework ya sabe que carpeta de idioma abrir para cargar todos los archivos que contienen todos los textos del programa, esta parte de los textos será explicada con mas detalle más adelante.
+
+9)Definir y registrar el tema a utilizar durante la sesión. Se registra una variable de sesion con el valor del tema (hoja de estilos css), así $_SESSION['tema']  sería reconocida dentro del framework como $sesion_tema. El valor registrado se toma del arreglo de configuración global en la posicion $configuracion["GENERAL"]["tema"], asi el framework cargará las hojas de estilos de acuerdo al tema escogido. Esta parte de los estilos se explica mas detalladamente en una seccion posterior del documento.
+
+10)Obtener el nombre del módulo a partir de la URL dada para iniciarlo. Se recibe por URL ($url_modulo) el valor de un campo “url” de la tabla de la BD “modulos”, con este valor se consulta en la tabla “modulos” el nombre del modulo para poder inicializarlo (la clase modulo recibe como parametro el nombre del modulo, el cual no siempre coincide con el valor del campo url).
+
+11)Procesar las peticiones recibidas vía AJAX. Como se mencionó anteriormente, todas y cada una de las peticiones pasan a traves del index, así que en primer lugar se verifica que la peticion sea via ajax, esto a traves de la variable $url_via, la cual se obtiene de la url de la peticion al reescribir dicha URL en el archivo .htaccess (toma la URL de la peticion, y asigna sus valores a variables, en este caso a la variable via), así, cualquier peticion ajax es facil de determinar gracias al valor de la variable $url_via.
+En caso de ser una peticion ajax, se crea un objeto de la clase Modulo y se llama a su metodo procesar(), el cual se encarga de buscar el archivo ajax.php del modulo solicitado (el valor que viene en $url_modulo) y llamar a la función solicitada (valor de la variable $url_accion).
+
+12)Procesar las peticiones recibidas normalmente. En caso de no ser una peticion ajax, se recibe es una solicitud http normal, la cual generará una respuesta de una página HTML completa. En esta parte del index.php se verifica si la solicitud es para un modulo en especial (si es para un modulo, se crea un objeto de la clase Modulo con el nombre del modulo como parametro para el constructor de la clase) o en caso contrario, la solicitud seria a la página “home”. Seguidamente se llama al metodo de la clase Plantilla::iniciar() (el cual se explica en detalle más adelante) junto al metodo procesar() de la clase Modulo, y por ultimo se llama a Servidor::enviarHTML() que es el encargado, a traves de metodos de la clase Plantilla,  de reemplazar el codigo generado en el procesamiento del codigo PHP en una de las plantillas (/plantillas/interna|principal.html).
